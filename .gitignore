@@ -1,0 +1,6 @@
+inspiration_1.png
+node_modules/
+.env
+*.log
+.DS_Store
+.vscode/settings.json
