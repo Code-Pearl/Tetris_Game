@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Toddler Tetris</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bubblegum+Sans&display=swap');
+
+        body {
+            background-color: #f0f9ff;
+            font-family: 'Bubblegum Sans', cursive;
+            touch-action: none;
+            overflow: hidden;
+            overscroll-behavior: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        canvas {
+            background-color: #1e293b;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            touch-action: none;
+            transition: transform 0.1s;
+        }
+        
+        /* Screen shake class */
+        .shake {
+            animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Shape Toggles Bar */
+        #shape-controls {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: #ffffff;
+            border-radius: 0 0 16px 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            z-index: 10;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .shape-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 3px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0.4;
+            background: #f8fafc;
+        }
+
+        .shape-toggle.active {
+            opacity: 1;
+            border-color: #4ade80;
+            background: #dcfce7;
+            transform: scale(1.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Shape Miniatures */
+        .mini-shape { width: 20px; height: 20px; position: relative; }
+        .s-O { background: #facc15; width: 20px; height: 20px; }
+        .s-I { background: #06b6d4; width: 20px; height: 5px; margin-top: 7px; }
+        .s-T { width: 20px; height: 12px; } .s-T::before { content:''; position: absolute; width:20px; height:6px; background:#a855f7; top:0; } .s-T::after { content:''; position: absolute; width:6px; height:6px; background:#a855f7; top:6px; left:7px; }
+        .s-S { width: 20px; height: 12px; } .s-S::before { content:''; position: absolute; width:12px; height:6px; background:#22c55e; top:0; right:0; } .s-S::after { content:''; position: absolute; width:12px; height:6px; background:#22c55e; top:6px; left:0; }
+        .s-Z { width: 20px; height: 12px; } .s-Z::before { content:''; position: absolute; width:12px; height:6px; background:#ef4444; top:0; left:0; } .s-Z::after { content:''; position: absolute; width:12px; height:6px; background:#ef4444; top:6px; right:0; }
+        .s-L { width: 14px; height: 20px; } .s-L::before { content:''; position: absolute; width:6px; height:20px; background:#f97316; left:0; } .s-L::after { content:''; position: absolute; width:8px; height:6px; background:#f97316; bottom:0; right:0; }
+        .s-J { width: 14px; height: 20px; } .s-J::before { content:''; position: absolute; width:6px; height:20px; background:#3b82f6; right:0; } .s-J::after { content:''; position: absolute; width:8px; height:6px; background:#3b82f6; bottom:0; left:0; }
+
+        /* On Screen Controls */
+        #controls-area {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center; /* Centered group */
+            gap: 12px; /* Closer together */
+            padding: 0 10px;
+            pointer-events: none;
+        }
+
+        .game-btn {
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            border: 4px solid rgba(0,0,0,0.1);
+            pointer-events: auto;
+            user-select: none;
+            box-shadow: 0 6px 0px rgba(0,0,0,0.2);
+            transition: transform 0.1s, box-shadow 0.1s;
+            color: white;
+            text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+        }
+        
+        .game-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0px rgba(0,0,0,0.2);
+        }
+
+        /* Button Colors - Inspired by playful controllers */
+        #btn-left { background-color: #f59e0b; /* Amber/Orange */ }
+        #btn-right { background-color: #3b82f6; /* Blue */ }
+        #btn-rotate { background-color: #22c55e; /* Green */ font-size: 28px; }
+        #btn-down { background-color: #ef4444; /* Red */ }
+
+        .confetti {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        /* Happy Face Overlay */
+        #happy-face {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 150px;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        #happy-face.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        
+        .flash-overlay {
+            position: absolute;
+            top:0; left:0; right:0; bottom:0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+        }
+        
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- Shape Selector -->
+    <div id="shape-controls">
+        <div class="shape-toggle active" data-shape="O" title="Square"><div class="mini-shape s-O"></div></div>
+        <div class="shape-toggle" data-shape="I" title="Line"><div class="mini-shape s-I"></div></div>
+        <div class="shape-toggle" data-shape="T" title="T-Shape"><div class="mini-shape s-T"></div></div>
+        <div class="shape-toggle" data-shape="L" title="L-Shape"><div class="mini-shape s-L"></div></div>
+        <div class="shape-toggle" data-shape="J" title="J-Shape"><div class="mini-shape s-J"></div></div>
+        <div class="shape-toggle" data-shape="S" title="S-Shape"><div class="mini-shape s-S"></div></div>
+        <div class="shape-toggle" data-shape="Z" title="Z-Shape"><div class="mini-shape s-Z"></div></div>
+    </div>
+
+    <div style="position:relative;">
+        <canvas id="tetris"></canvas>
+        <div id="happy-face">🤩</div>
+        <div id="flash-effect" class="flash-overlay"></div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls-area">
+        <div class="game-btn" id="btn-left">⬅️</div>
+        <div class="game-btn" id="btn-down">⬇️</div>
+        <div class="game-btn" id="btn-rotate">🔄</div>
+        <div class="game-btn" id="btn-right">➡️</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('tetris');
+    const context = canvas.getContext('2d');
+    const happyFace = document.getElementById('happy-face');
+    const flashEffect = document.getElementById('flash-effect');
+    
+    // --- Audio Context Setup (Web Audio API) ---
+    let audioCtx = null;
+    
+    function initAudio() {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playSound(type) {
+        if (!audioCtx) initAudio();
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'lock') {
+            // Low thud/clack sound
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'clear') {
+            // "Whoo!" Slide whistle effect (sine wave sweeping up)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.3); // Slide up
+            osc.frequency.linearRampToValueAtTime(600, now + 0.5); // Dip down slightly
+            
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.3);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.6);
+            
+            osc.start(now);
+            osc.stop(now + 0.6);
+            
+            // Sparkle sound layer (high pitch triangles)
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1200, now);
+            osc2.frequency.linearRampToValueAtTime(1800, now + 0.4);
+            gain2.gain.setValueAtTime(0.05, now);
+            gain2.gain.linearRampToValueAtTime(0, now + 0.4);
+            osc2.start(now);
+            osc2.stop(now + 0.4);
+        }
+    }
+
+    // --- Game Config ---
+    const ROWS = 16; 
+    const COLS = 10;
+    let BLOCK_SIZE = 30; 
+    const DROP_INTERVAL = 1000; 
+
+    // --- State ---
+    let board = [];
+    let dropCounter = 0;
+    let lastTime = 0;
+    let animationId = null;
+    let enabledShapes = ['O'];
+    
+    const COLORS = {
+        'O': '#facc15', 'I': '#06b6d4', 'T': '#a855f7',
+        'S': '#22c55e', 'Z': '#ef4444', 'J': '#3b82f6', 'L': '#f97316'
+    };
+
+    const SHAPES = {
+        'I': [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]],
+        'L': [[0,1,0],[0,1,0],[0,1,1]],
+        'J': [[0,1,0],[0,1,0],[1,1,0]],
+        'O': [[1,1],[1,1]],
+        'Z': [[1,1,0],[0,1,1],[0,0,0]],
+        'S': [[0,1,1],[1,1,0],[0,0,0]],
+        'T': [[0,1,0],[1,1,1],[0,0,0]],
+    };
+
+    let player = {
+        pos: {x: 0, y: 0},
+        matrix: null,
+        type: 'O'
+    };
+
+    // --- Initialization ---
+    function init() {
+        createBoard();
+        playerReset(); 
+        resize();
+        update();
+        window.addEventListener('resize', resize);
+        
+        // Init audio on first interaction
+        window.addEventListener('click', initAudio, {once:true});
+        window.addEventListener('touchstart', initAudio, {once:true});
+    }
+
+    function createBoard() {
+        board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    }
+
+    function resize() {
+        const headerHeight = document.getElementById('shape-controls').offsetHeight + 20;
+        const footerHeight = 120; 
+        const availableHeight = window.innerHeight - headerHeight - footerHeight;
+        const availableWidth = window.innerWidth - 20;
+
+        const sizeByHeight = Math.floor(availableHeight / ROWS);
+        const sizeByWidth = Math.floor(availableWidth / COLS);
+
+        BLOCK_SIZE = Math.min(sizeByHeight, sizeByWidth);
+        
+        canvas.width = BLOCK_SIZE * COLS;
+        canvas.height = BLOCK_SIZE * ROWS;
+        
+        // Scale flash overlay to match canvas
+        flashEffect.style.width = canvas.width + 'px';
+        flashEffect.style.height = canvas.height + 'px';
+        
+        draw();
+    }
+
+    // --- Core Logic ---
+
+    function playerReset() {
+        if (enabledShapes.length === 0) enabledShapes = ['O'];
+        const type = enabledShapes[Math.floor(Math.random() * enabledShapes.length)];
+        player.type = type;
+        player.matrix = SHAPES[type];
+        player.pos.y = 0;
+        player.pos.x = (Math.floor(COLS / 2)) - (Math.floor(player.matrix[0].length / 2));
+
+        if (collide(board, player)) {
+            celebrateClear(true); 
+            createBoard(); 
+        }
+    }
+
+    function collide(board, player) {
+        const m = player.matrix;
+        const o = player.pos;
+        for (let y = 0; y < m.length; ++y) {
+            for (let x = 0; x < m[y].length; ++x) {
+                if (m[y][x] !== 0 && (board[y + o.y] && board[y + o.y][x + o.x]) !== 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function drawMatrix(matrix, offset, type) {
+        if (!matrix) return;
+        matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    context.fillStyle = type ? COLORS[type] : COLORS[value];
+                    context.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    
+                    context.fillStyle = 'rgba(255,255,255,0.3)';
+                    context.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, 4);
+                    context.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, 4, BLOCK_SIZE);
+
+                    context.fillStyle = 'rgba(0,0,0,0.1)';
+                    context.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE + BLOCK_SIZE - 4, BLOCK_SIZE, 4);
+                    context.fillRect((x + offset.x) * BLOCK_SIZE + BLOCK_SIZE - 4, (y + offset.y) * BLOCK_SIZE, 4, BLOCK_SIZE);
+                    
+                    context.strokeStyle = 'rgba(0,0,0,0.2)';
+                    context.lineWidth = 1;
+                    context.strokeRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            });
+        });
+    }
+
+    function draw() {
+        context.fillStyle = '#1e293b';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        context.strokeStyle = '#334155';
+        context.lineWidth = 1;
+        for (let i = 0; i <= COLS; i++) {
+            context.beginPath();
+            context.moveTo(i * BLOCK_SIZE, 0);
+            context.lineTo(i * BLOCK_SIZE, canvas.height);
+            context.stroke();
+        }
+
+        drawMatrix(board, {x: 0, y: 0});
+        drawMatrix(player.matrix, player.pos, player.type);
+    }
+
+    function merge(board, player) {
+        player.matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    board[y + player.pos.y][x + player.pos.x] = player.type;
+                }
+            });
+        });
+    }
+
+    function rotate(matrix, dir) {
+        for (let y = 0; y < matrix.length; ++y) {
+            for (let x = 0; x < y; ++x) {
+                [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+            }
+        }
+        if (dir > 0) matrix.forEach(row => row.reverse());
+        else matrix.reverse();
+    }
+
+    function playerRotate(dir) {
+        const pos = player.pos.x;
+        let offset = 1;
+        rotate(player.matrix, dir);
+        while (collide(board, player)) {
+            player.pos.x += offset;
+            offset = -(offset + (offset > 0 ? 1 : -1));
+            if (offset > player.matrix[0].length) {
+                rotate(player.matrix, -dir);
+                player.pos.x = pos;
+                return;
+            }
+        }
+    }
+
+    function playerMove(dir) {
+        player.pos.x += dir;
+        if (collide(board, player)) player.pos.x -= dir;
+    }
+
+    function playerDrop() {
+        player.pos.y++;
+        if (collide(board, player)) {
+            player.pos.y--; 
+            
+            // LOCK LOGIC
+            merge(board, player);
+            playSound('lock'); // Sound Effect
+            triggerLockVisuals(); // Visual feedback
+            
+            playerReset();
+            arenaSweep();
+            dropCounter = 0; 
+        }
+        dropCounter = 0;
+    }
+
+    function triggerLockVisuals() {
+        // 1. Brief screen shake
+        canvas.classList.remove('shake');
+        void canvas.offsetWidth; // trigger reflow
+        canvas.classList.add('shake');
+        
+        // 2. White flash on canvas container
+        flashEffect.style.opacity = '0.3';
+        setTimeout(() => {
+            flashEffect.style.opacity = '0';
+        }, 100);
+    }
+
+    function arenaSweep() {
+        let linesCleared = 0;
+        outer: for (let y = board.length - 1; y > 0; --y) {
+            for (let x = 0; x < board[y].length; ++x) {
+                if (board[y][x] === 0) continue outer;
+            }
+            const row = board.splice(y, 1)[0].fill(0);
+            board.unshift(row);
+            ++y;
+            linesCleared++;
+        }
+
+        if (linesCleared > 0) {
+            celebrateClear(false);
+        }
+    }
+    
+    function celebrateClear(isReset) {
+        // Sound
+        playSound('clear');
+        
+        // Confetti
+        for(let i=0; i<40; i++) createConfetti();
+        
+        // Happy Face (Random happy emoji)
+        const faces = ['🤩', '🥳', '😎', '🦄', '⭐'];
+        happyFace.innerText = isReset ? '🚀' : faces[Math.floor(Math.random()*faces.length)];
+        happyFace.classList.add('show');
+        setTimeout(() => {
+            happyFace.classList.remove('show');
+        }, 1000);
+    }
+
+    function createConfetti() {
+        const el = document.createElement('div');
+        el.classList.add('confetti');
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.backgroundColor = ['#facc15', '#06b6d4', '#ef4444', '#22c55e', '#a855f7'][Math.floor(Math.random()*5)];
+        el.style.animationDuration = (Math.random() * 1 + 1) + 's';
+        
+        // Random shape for confetti (circle or square)
+        if(Math.random() > 0.5) el.style.borderRadius = '50%';
+        
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2000);
+    }
+
+    function update(time = 0) {
+        const deltaTime = time - lastTime;
+        lastTime = time;
+
+        dropCounter += deltaTime;
+        if (dropCounter > DROP_INTERVAL) {
+            playerDrop();
+        }
+
+        draw();
+        animationId = requestAnimationFrame(update);
+    }
+
+    // --- Input Handling ---
+
+    document.getElementById('btn-left').addEventListener('click', () => playerMove(-1));
+    document.getElementById('btn-right').addEventListener('click', () => playerMove(1));
+    document.getElementById('btn-down').addEventListener('click', () => playerDrop());
+    document.getElementById('btn-rotate').addEventListener('click', () => playerRotate(1));
+
+    // Touch / Mouse
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let dragThreshold = 10;
+    let hasMoved = false;
+
+    function getColumnFromX(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        const relativeX = clientX - rect.left;
+        let col = Math.floor(relativeX / BLOCK_SIZE);
+        if (col < 0) col = 0;
+        if (col >= COLS) col = COLS - 1;
+        return col;
+    }
+
+    function handleStart(x, y) {
+        isDragging = true;
+        startX = x;
+        startY = y;
+        hasMoved = false;
+        initAudio(); // Initialize audio context on touch start
+    }
+
+    function handleMove(x, y) {
+        if (!isDragging) return;
+        const diffX = Math.abs(x - startX);
+        const diffY = Math.abs(y - startY);
+
+        if (diffX > dragThreshold || diffY > dragThreshold) hasMoved = true;
+        
+        if ((y - startY) > BLOCK_SIZE * 1.5) {
+             playerDrop();
+             startY = y; 
+             return;
+        }
+
+        if (hasMoved) {
+            const targetCol = getColumnFromX(x);
+            const pieceWidth = player.matrix[0].length;
+            let desiredX = targetCol - Math.floor(pieceWidth / 2);
+            if (desiredX > player.pos.x) playerMove(1);
+            if (desiredX < player.pos.x) playerMove(-1);
+        }
+    }
+
+    function handleEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        if (!hasMoved) playerRotate(1);
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handleStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault(); 
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        handleEnd();
+    });
+
+    canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+    window.addEventListener('mouseup', handleEnd);
+
+    // Toggle Logic
+    const shapeToggles = document.querySelectorAll('.shape-toggle');
+    shapeToggles.forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const shape = toggle.getAttribute('data-shape');
+            if (toggle.classList.contains('active')) {
+                if (enabledShapes.length > 1) {
+                    toggle.classList.remove('active');
+                    enabledShapes = enabledShapes.filter(s => s !== shape);
+                }
+            } else {
+                toggle.classList.add('active');
+                if (!enabledShapes.includes(shape)) enabledShapes.push(shape);
+            }
+        });
+    });
+
+    init();
+</script>
+</body>
+</html>
